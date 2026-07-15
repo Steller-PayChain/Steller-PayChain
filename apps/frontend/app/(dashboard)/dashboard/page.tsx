@@ -46,24 +46,28 @@ export default function DashboardPage() {
           value={data?.totalEmployees ?? 0}
           description={`${data?.activeEmployees ?? 0} active`}
           icon={Users}
+          isLoading={isLoading}
         />
         <StatCard
           title="Monthly Payroll"
           value={formatCurrency(data?.monthlyPayrollTotal ?? 0, 'USDC')}
           description="This month"
           icon={DollarSign}
+          isLoading={isLoading}
         />
         <StatCard
           title="Total Sent"
           value={formatCurrency(data?.totalPayrollSent ?? 0, 'USDC')}
           description="All time"
           icon={TrendingUp}
+          isLoading={isLoading}
         />
         <StatCard
           title="Pending Payrolls"
           value={data?.pendingPayrolls ?? 0}
           description="Awaiting execution"
           icon={Clock}
+          isLoading={isLoading}
         />
       </div>
 
