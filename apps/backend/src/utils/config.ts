@@ -1,6 +1,13 @@
 import dotenv from 'dotenv'
 dotenv.config()
 
+function intEnv(name: string, fallback: number): number {
+  const raw = process.env[name]
+  if (!raw) return fallback
+  const n = parseInt(raw, 10)
+  return Number.isFinite(n) && n > 0 ? n : fallback
+}
+
 export const config = {
   port: parseInt(process.env.PORT || '4000'),
   nodeEnv: process.env.NODE_ENV || 'development',
@@ -24,5 +31,14 @@ export const config = {
       payroll: process.env.PAYROLL_CONTRACT_ID || '',
       payment: process.env.PAYMENT_CONTRACT_ID || '',
     },
+  },
+  // Auth endpoint rate limits (issue #6). Overridable via env.
+  rateLimit: {
+    // Login: default 10 requests / 15 minutes
+    loginMax: intEnv('RATE_LIMIT_LOGIN_MAX', 10),
+    loginWindowMs: intEnv('RATE_LIMIT_WINDOW_MS', 15 * 60 * 1000),
+    // Register: default 5 requests / 1 hour
+    registerMax: intEnv('RATE_LIMIT_REGISTER_MAX', 5),
+    registerWindowMs: intEnv('RATE_LIMIT_REGISTER_WINDOW_MS', 60 * 60 * 1000),
   },
 } as const
