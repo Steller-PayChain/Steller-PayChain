@@ -2,11 +2,12 @@ import { Router, Request, Response } from 'express'
 import { prisma } from '../utils/prisma'
 import { hashPassword, comparePassword, signToken, respond } from '../utils/auth'
 import { validate, registerSchema, loginSchema } from '../utils/validators'
+import { loginRateLimiter, registerRateLimiter } from '../middleware/rateLimiter'
 
 const router = Router()
 
 // POST /api/auth/register
-router.post('/register', async (req: Request, res: Response) => {
+router.post('/register', registerRateLimiter, async (req: Request, res: Response) => {
   const parsed = validate(registerSchema, req.body)
   if ('error' in parsed) return res.status(400).json({ success: false, error: parsed.error })
 
@@ -32,7 +33,7 @@ router.post('/register', async (req: Request, res: Response) => {
 })
 
 // POST /api/auth/login
-router.post('/login', async (req: Request, res: Response) => {
+router.post('/login', loginRateLimiter, async (req: Request, res: Response) => {
   const parsed = validate(loginSchema, req.body)
   if ('error' in parsed) return res.status(400).json({ success: false, error: parsed.error })
 
