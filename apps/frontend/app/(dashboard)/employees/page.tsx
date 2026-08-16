@@ -2,8 +2,9 @@
 
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Search, Plus, UserCheck, UserX, Trash2, Pencil } from 'lucide-react'
-import api from '@/lib/api'
+import { Search, Plus, UserCheck, UserX, Trash2, Pencil, ChevronLeft, ChevronRight } from 'lucide-react'
+import { useSearchParams, useRouter, usePathname } from 'next/navigation'
+import api, { getEmployees } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -22,22 +23,59 @@ const statusVariant: Record<string, 'success' | 'warning' | 'destructive'> = {
 }
 
 export default function EmployeesPage() {
-  const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState('')
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+
+  const pageParam = searchParams.get('page')
+  const page = Math.max(1, parseInt(pageParam || '1', 10))
+  const limit = 10
+
+  const [search, setSearch] = useState(searchParams.get('search') || '')
+  const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || '')
   const [showAdd, setShowAdd] = useState(false)
   const [editEmployee, setEditEmployee] = useState<Employee | null>(null)
   const queryClient = useQueryClient()
   const toast = useToast()
 
-  const { data: employees = [], isLoading } = useQuery<Employee[]>({
-    queryKey: ['employees', search, statusFilter],
-    queryFn: async () => {
-      const params = new URLSearchParams()
-      if (search) params.set('search', search)
-      if (statusFilter) params.set('status', statusFilter)
-      return (await api.get(`/employees?${params}`)).data.data
-    },
+  const createQueryString = (params: Record<string, string | number | null>) => {
+    const newSearchParams = new URLSearchParams(searchParams.toString())
+    Object.entries(params).forEach(([key, value]) => {
+      if (value === null || value === '') {
+        newSearchParams.delete(key)
+      } else {
+        newSearchParams.set(key, String(value))
+      }
+    })
+    return newSearchParams.toString()
+  }
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['employees', page, limit, search, statusFilter],
+    queryFn: () => getEmployees({ page, limit, search, status: statusFilter }),
   })
+
+  const employees = data?.data ?? []
+  const pagination = data?.pagination
+  const total = pagination?.total ?? employees.length
+  const totalPages = Math.max(1, pagination?.totalPages ?? Math.ceil(total / limit) || 1)
+
+  const handlePageChange = (newPage: number) => {
+    const queryString = createQueryString({ page: newPage })
+    router.push(`${pathname}?${queryString}`)
+  }
+
+  const handleSearchChange = (value: string) => {
+    setSearch(value)
+    const queryString = createQueryString({ search: value, page: 1 })
+    router.push(`${pathname}?${queryString}`)
+  }
+
+  const handleStatusFilterChange = (status: string) => {
+    setStatusFilter(status)
+    const queryString = createQueryString({ status, page: 1 })
+    router.push(`${pathname}?${queryString}`)
+  }
 
   const statusMutation = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) =>
@@ -61,7 +99,7 @@ export default function EmployeesPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Employees</h1>
-          <p className="text-muted-foreground">{employees.length} total employees</p>
+          <p className="text-muted-foreground">{total} total employees</p>
         </div>
         <Button onClick={() => setShowAdd(true)}>
           <Plus className="w-4 h-4 mr-2" /> Add Employee
@@ -76,7 +114,7 @@ export default function EmployeesPage() {
             placeholder="Search employees..."
             className="pl-9"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => handleSearchChange(e.target.value)}
           />
         </div>
         <div className="flex gap-2">
@@ -85,7 +123,7 @@ export default function EmployeesPage() {
               key={s}
               variant={statusFilter === s ? 'default' : 'outline'}
               size="sm"
-              onClick={() => setStatusFilter(s)}
+              onClick={() => handleStatusFilterChange(s)}
             >
               {s || 'All'}
             </Button>
@@ -185,6 +223,36 @@ export default function EmployeesPage() {
               )}
             </TableBody>
           </Table>
+
+          {/* Pagination Controls */}
+          <div className="flex items-center justify-between px-4 py-4 border-t">
+            <p className="text-sm text-muted-foreground">
+              Showing {employees.length > 0 ? (page - 1) * limit + 1 : 0} to {Math.min(page * limit, total)} of {total} employees
+            </p>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground mr-2">
+                Page {page} of {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handlePageChange(page - 1)}
+                disabled={page <= 1 || isLoading}
+              >
+                <ChevronLeft className="w-4 h-4 mr-1" />
+                Previous
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handlePageChange(page + 1)}
+                disabled={page >= totalPages || isLoading}
+              >
+                Next
+                <ChevronRight className="w-4 h-4 ml-1" />
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
 

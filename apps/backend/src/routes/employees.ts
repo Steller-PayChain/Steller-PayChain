@@ -11,24 +11,45 @@ router.use(authenticate, requireCompany)
 
 // GET /api/employees
 router.get('/', async (req: AuthRequest, res: Response) => {
-  const { search, status } = req.query as Record<string, string | undefined>
+  const { search, status, page, limit } = req.query as Record<string, string | undefined>
   const companyId = req.user!.companyId!
 
+  const where = {
+    companyId,
+    ...(status ? { status: status as EmployeeStatus } : {}),
+    ...(search ? {
+      OR: [
+        { name: { contains: search, mode: 'insensitive' as const } },
+        { email: { contains: search, mode: 'insensitive' as const } },
+      ],
+    } : {}),
+  }
+
+  const total = await prisma.employee.count({ where })
+
+  const pageNum = page ? Math.max(1, parseInt(page, 10) || 1) : undefined
+  const limitNum = limit ? Math.max(1, parseInt(limit, 10) || 10) : undefined
+
   const employees = await prisma.employee.findMany({
-    where: {
-      companyId,
-      ...(status ? { status: status as EmployeeStatus } : {}),
-      ...(search ? {
-        OR: [
-          { name: { contains: search, mode: 'insensitive' } },
-          { email: { contains: search, mode: 'insensitive' } },
-        ],
-      } : {}),
-    },
+    where,
     orderBy: { createdAt: 'desc' },
+    ...(pageNum && limitNum ? { skip: (pageNum - 1) * limitNum, take: limitNum } : {}),
   })
 
-  res.json({ success: true, data: employees })
+  const effectivePage = pageNum || 1
+  const effectiveLimit = limitNum || (total > 0 ? total : 10)
+  const totalPages = Math.ceil(total / effectiveLimit) || 1
+
+  res.json({
+    success: true,
+    data: employees,
+    pagination: {
+      total,
+      page: effectivePage,
+      limit: effectiveLimit,
+      totalPages,
+    },
+  })
 })
 
 // POST /api/employees
