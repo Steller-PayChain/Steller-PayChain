@@ -27,3 +27,18 @@ api.interceptors.response.use(
 )
 
 export default api
+
+export interface MonthlyAnalyticsData {
+  month: string
+  yearMonth: string
+  USDC: number
+  USDT: number
+  XLM: number
+  total: number
+}
+
+export async function getMonthlyAnalytics(): Promise<MonthlyAnalyticsData[]> {
+  const res = await api.get('/analytics/monthly')
+  return res.data.data
+}
+

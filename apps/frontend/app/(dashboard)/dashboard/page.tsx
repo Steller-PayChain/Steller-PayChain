@@ -67,7 +67,7 @@ export default function DashboardPage() {
         />
       </div>
 
-      {data?.trend && <PayrollTrendChart data={data.trend} />}
+      <PayrollTrendChart />
     </div>
   )
 }
