@@ -1,7 +1,8 @@
 import { Router, Response } from 'express'
 import { prisma } from '../utils/prisma'
 import { authenticate, authorize, requireCompany } from '../middleware/auth'
-import { validate, employeeSchema } from '../utils/validators'
+import { validate } from '../middleware/validate'
+import { createEmployeeSchema, updateEmployeeSchema, updateEmployeeStatusSchema } from '../validators/employee'
 import type { AuthRequest } from '../middleware/auth'
 import { EmployeeStatus } from '@prisma/client'
 
@@ -32,15 +33,13 @@ router.get('/', async (req: AuthRequest, res: Response) => {
 })
 
 // POST /api/employees
-router.post('/', authorize('ADMIN', 'HR_MANAGER'), async (req: AuthRequest, res: Response) => {
-  const parsed = validate(employeeSchema, req.body)
-  if ('error' in parsed) return res.status(400).json({ success: false, error: parsed.error })
-
+router.post('/', authorize('ADMIN', 'HR_MANAGER'), validate(createEmployeeSchema), async (req: AuthRequest, res: Response) => {
+  const data = req.body
   const companyId = req.user!.companyId!
-  const existing = await prisma.employee.findUnique({ where: { companyId_email: { companyId, email: parsed.data.email } } })
+  const existing = await prisma.employee.findUnique({ where: { companyId_email: { companyId, email: data.email } } })
   if (existing) return res.status(409).json({ success: false, error: 'Employee with this email already exists' })
 
-  const employee = await prisma.employee.create({ data: { ...parsed.data, companyId, salary: parsed.data.salary } })
+  const employee = await prisma.employee.create({ data: { ...data, companyId, salary: data.salary } })
   res.status(201).json({ success: true, data: employee })
 })
 
@@ -56,30 +55,26 @@ router.get('/:id', async (req: AuthRequest, res: Response) => {
 })
 
 // PUT /api/employees/:id
-router.put('/:id', authorize('ADMIN', 'HR_MANAGER'), async (req: AuthRequest, res: Response) => {
+router.put('/:id', authorize('ADMIN', 'HR_MANAGER'), validate(updateEmployeeSchema), async (req: AuthRequest, res: Response) => {
   const id = req.params['id'] as string
-  const parsed = validate(employeeSchema.partial(), req.body)
-  if ('error' in parsed) return res.status(400).json({ success: false, error: parsed.error })
+  const data = req.body
 
   const employee = await prisma.employee.findFirst({ where: { id, companyId: req.user!.companyId! } })
   if (!employee) return res.status(404).json({ success: false, error: 'Employee not found' })
 
-  const updated = await prisma.employee.update({ where: { id }, data: parsed.data })
+  const updated = await prisma.employee.update({ where: { id }, data })
   res.json({ success: true, data: updated })
 })
 
 // PATCH /api/employees/:id/status
-router.patch('/:id/status', authorize('ADMIN', 'HR_MANAGER'), async (req: AuthRequest, res: Response) => {
+router.patch('/:id/status', authorize('ADMIN', 'HR_MANAGER'), validate(updateEmployeeStatusSchema), async (req: AuthRequest, res: Response) => {
   const id = req.params['id'] as string
-  const { status } = req.body as { status: string }
-  if (!['ACTIVE', 'SUSPENDED', 'TERMINATED'].includes(status)) {
-    return res.status(400).json({ success: false, error: 'Invalid status' })
-  }
+  const { status } = req.body as { status: EmployeeStatus }
 
   const employee = await prisma.employee.findFirst({ where: { id, companyId: req.user!.companyId! } })
   if (!employee) return res.status(404).json({ success: false, error: 'Employee not found' })
 
-  const updated = await prisma.employee.update({ where: { id }, data: { status: status as EmployeeStatus } })
+  const updated = await prisma.employee.update({ where: { id }, data: { status } })
   res.json({ success: true, data: updated })
 })
 

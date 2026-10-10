@@ -1,7 +1,8 @@
 import { Router, Response } from 'express'
 import { prisma } from '../utils/prisma'
 import { authenticate, authorize, requireCompany } from '../middleware/auth'
-import { validate, payrollSchema } from '../utils/validators'
+import { validate } from '../middleware/validate'
+import { createPayrollSchema } from '../validators/payroll'
 import { executePayroll, executeBulkPayroll } from '../services/payment'
 import type { AuthRequest } from '../middleware/auth'
 import { PaymentToken, PayrollStatus } from '@prisma/client'
@@ -30,12 +31,9 @@ router.get('/', async (req: AuthRequest, res: Response) => {
 })
 
 // POST /api/payroll — create payroll entry
-router.post('/', authorize('ADMIN', 'HR_MANAGER'), async (req: AuthRequest, res: Response) => {
-  const parsed = validate(payrollSchema, req.body)
-  if ('error' in parsed) return res.status(400).json({ success: false, error: parsed.error })
-
+router.post('/', authorize('ADMIN', 'HR_MANAGER'), validate(createPayrollSchema), async (req: AuthRequest, res: Response) => {
   const companyId = req.user!.companyId!
-  const { employeeId, amount, token, paymentDate } = parsed.data
+  const { employeeId, amount, token, paymentDate } = req.body
 
   const employee = await prisma.employee.findFirst({ where: { id: employeeId, companyId } })
   if (!employee) return res.status(404).json({ success: false, error: 'Employee not found' })

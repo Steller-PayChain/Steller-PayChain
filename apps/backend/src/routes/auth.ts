@@ -1,17 +1,15 @@
 import { Router, Request, Response } from 'express'
 import { prisma } from '../utils/prisma'
 import { hashPassword, comparePassword, signToken, respond } from '../utils/auth'
-import { validate, registerSchema, loginSchema } from '../utils/validators'
+import { validate } from '../middleware/validate'
+import { registerSchema, loginSchema } from '../validators/auth'
 import { loginRateLimiter, registerRateLimiter } from '../middleware/rateLimiter'
 
 const router = Router()
 
 // POST /api/auth/register
-router.post('/register', registerRateLimiter, async (req: Request, res: Response) => {
-  const parsed = validate(registerSchema, req.body)
-  if ('error' in parsed) return res.status(400).json({ success: false, error: parsed.error })
-
-  const { name, email, password, role, companyName } = parsed.data
+router.post('/register', registerRateLimiter, validate(registerSchema), async (req: Request, res: Response) => {
+  const { name, email, password, role, companyName } = req.body
 
   const existing = await prisma.user.findUnique({ where: { email } })
   if (existing) return res.status(409).json({ success: false, error: 'Email already registered' })
@@ -33,11 +31,8 @@ router.post('/register', registerRateLimiter, async (req: Request, res: Response
 })
 
 // POST /api/auth/login
-router.post('/login', loginRateLimiter, async (req: Request, res: Response) => {
-  const parsed = validate(loginSchema, req.body)
-  if ('error' in parsed) return res.status(400).json({ success: false, error: parsed.error })
-
-  const { email, password } = parsed.data
+router.post('/login', loginRateLimiter, validate(loginSchema), async (req: Request, res: Response) => {
+  const { email, password } = req.body
 
   const user = await prisma.user.findUnique({ where: { email } })
   if (!user || !(await comparePassword(password, user.password))) {
